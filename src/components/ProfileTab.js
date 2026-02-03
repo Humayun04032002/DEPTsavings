@@ -17,14 +17,37 @@ const ProfileTab = ({ user }) => {
   const [darkMode] = useState(localStorage.getItem('theme') === 'dark');
 
   // ছবি সিলেক্ট এবং লোকাল স্টোরেজে সেভ করার ফাংশন
+  // ছবি সিলেক্ট এবং লোকাল স্টোরেজে সেভ করার ফাংশন (উইথ কমপ্রেশন)
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // ফাইল সাইজ চেক (২ মেগাবাইটের বেশি হলে সতর্ক করা যেতে পারে)
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64String = reader.result;
-        setProfileImg(base64String);
-        localStorage.setItem('user_photo', base64String); // লোকাল স্টোরেজে সেভ
+        const img = new Image();
+        img.src = reader.result;
+        img.onload = () => {
+          // ক্যানভাস ব্যবহার করে ছবি ছোট করা (রিসাইজ)
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400; // ছবি ৪00 পিক্সেলের বেশি বড় হবে না
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          // ছবির মান ০.৭ (৭০%) করে দেওয়া যাতে মেমোরি কম লাগে
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          
+          setProfileImg(compressedBase64);
+          try {
+            localStorage.setItem('user_photo', compressedBase64);
+          } catch (error) {
+            console.error("Storage full or error:", error);
+            alert("ছবিটি অনেক বড়, দয়া করে ছোট ছবি ব্যবহার করুন।");
+          }
+        };
       };
       reader.readAsDataURL(file);
     }

@@ -16,15 +16,30 @@ const NoticeBoard = () => {
   // সরাসরি লোকাল স্টোরেজ থেকে থিম রিড করা
   const [darkMode] = useState(localStorage.getItem('theme') === 'dark');
 
+  // --- অ্যান্ডরয়েড পুশ নোটিফিকেশন লজিক ---
+  const triggerPushNotification = (title, body) => {
+    if (window.Android && window.Android.showNotification) {
+      window.Android.showNotification(title, body);
+    }
+  };
+
   useEffect(() => {
     window.scrollTo(0, 0);
     if (!auth.currentUser) return;
 
-    // ১. জেনারেল নোটিশ লিসেনার (দ্রুত ফেচ করার জন্য লজিক অপ্টিমাইজড)
+    // ১. জেনারেল নোটিশ লিসেনার
     const qNotice = query(collection(db, "notices"), orderBy("createdAt", "desc"));
     const unsubNotice = onSnapshot(qNotice, (snap) => {
-      setNotices(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      if(loading) setLoading(false); // ডাটা পাওয়া মাত্রই লোডিং বন্ধ
+      const newNotices = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // নতুন নোটিশ আসলে নোটিফিকেশন দেখানো (প্রথমবার লোড বাদে)
+      if (!loading && newNotices.length > notices.length) {
+        const latest = newNotices[0];
+        triggerPushNotification(latest.title || "নতুন নোটিশ", latest.message);
+      }
+      
+      setNotices(newNotices);
+      if(loading) setLoading(false);
     });
 
     // ২. পার্সোনাল নোটিফিকেশন লিসেনার
@@ -36,11 +51,18 @@ const NoticeBoard = () => {
 
     const unsubPersonal = onSnapshot(qPersonal, async (snap) => {
       const pNotifs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // নতুন পার্সোনাল নোটিফিকেশন আসলে (যেমন: টাকা এপ্রুভ বা রিজেক্ট)
+      const unread = snap.docs.filter(d => !d.data().read);
+      if (!loading && unread.length > 0) {
+        const latest = unread[0].data();
+        triggerPushNotification(latest.title || "আপডেট", latest.body);
+      }
+
       setPersonalNotifs(pNotifs);
       setLoading(false);
 
-      // আনরিড মেসেজগুলো ব্যাকগ্রাউন্ডে রিড মার্ক করা
-      const unread = snap.docs.filter(d => !d.data().read);
+      // ব্যাকগ্রাউন্ডে রিড মার্ক করা
       if (unread.length > 0) {
         const batch = writeBatch(db);
         unread.forEach(d => batch.update(doc(db, "notifications", d.id), { read: true }));
@@ -49,7 +71,7 @@ const NoticeBoard = () => {
     });
 
     return () => { unsubNotice(); unsubPersonal(); };
-  }, []);
+  }, [loading, notices.length]); // ডিপেন্ডেন্সি যোগ করা হয়েছে নির্ভুল নোটিফিকেশনের জন্য
 
   return (
     <div className={`min-h-screen transition-all duration-700 ${
@@ -82,7 +104,6 @@ const NoticeBoard = () => {
 
       <div className="max-w-xl mx-auto p-6 space-y-8 pb-24">
         {loading ? (
-          // প্রিমিয়াম স্কেলেটন লোডার
           <div className="space-y-6 py-10">
             {[1, 2, 3].map(i => (
                 <div key={i} className={`h-40 rounded-[3rem] animate-pulse ${darkMode ? 'bg-white/5' : 'bg-slate-200/50'}`}></div>

@@ -24,10 +24,15 @@ const AdminAddMember = () => {
 
   const registrationLink = `${window.location.origin}/join`;
 
+  // --- অ্যান্ডরয়েড নোটিফিকেশন ট্রিগার লজিক ---
+  const triggerPushNotification = (title, body) => {
+    if (window.Android && window.Android.showNotification) {
+      window.Android.showNotification(title, body);
+    }
+  };
+
   const copyLink = () => {
     const textToCopy = registrationLink;
-
-    // ১. আধুনিক ব্রাউজার ও সিকিউর কনটেক্সট (HTTPS/Localhost) এর জন্য
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(textToCopy)
         .then(() => {
@@ -36,30 +41,24 @@ const AdminAddMember = () => {
         })
         .catch((err) => console.error('Clipboard copy failed:', err));
     } else {
-      // ২. মোবাইল বা আইপি (HTTP) এর জন্য Fallback পদ্ধতি
       try {
         const textArea = document.createElement("textarea");
         textArea.value = textToCopy;
-        
-        // টেক্সট এরিয়াটি স্ক্রিনের বাইরে হাইড করে রাখা
         textArea.style.position = "fixed";
         textArea.style.left = "-9999px";
         textArea.style.top = "0";
         document.body.appendChild(textArea);
-        
         textArea.focus();
         textArea.select();
-        
         const successful = document.execCommand('copy');
         document.body.removeChild(textArea);
-        
         if (successful) {
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
         }
       } catch (err) {
         console.error('Fallback copy failed:', err);
-        alert("লিঙ্কটি কপি করা যায়নি। ম্যানুয়ালি কপি করুন।");
+        alert("লিঙ্কটি কপি করা যায়নি।");
       }
     }
   };
@@ -73,7 +72,6 @@ const AdminAddMember = () => {
       console.error("Error fetching requests:", error);
       setRequestLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -101,10 +99,13 @@ const AdminAddMember = () => {
         createdAt: serverTimestamp()
       });
 
+      // পুশ নোটিফিকেশন পাঠানো
+      triggerPushNotification("অভিনন্দন! 🎉", `${req.name}, আপনার মেম্বারশিপ রিকোয়েস্ট এপ্রুভ করা হয়েছে।`);
+
       await addDoc(collection(db, "logs"), {
         adminName: userData?.name || "Admin",
         action: "রিকোয়েস্ট এপ্রুভ",
-        details: `${req.name} (${req.phone}) এখন মেম্বার। মাসিক লক্ষ্য: ৳${req.monthlyTarget}`,
+        details: `${req.name} (${req.phone}) এখন মেম্বার।`,
         timestamp: serverTimestamp(),
         type: "success"
       });
@@ -143,6 +144,9 @@ const AdminAddMember = () => {
         createdAt: serverTimestamp()
       });
 
+      // পুশ নোটিফিকেশন পাঠানো
+      triggerPushNotification("অ্যাকাউন্ট তৈরি! ✨", `${formData.name}, আপনার মেম্বারশিপ অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে।`);
+
       await addDoc(collection(db, "logs"), {
         adminName: userData?.name || "Admin",
         action: "সরাসরি অ্যাড",
@@ -155,7 +159,7 @@ const AdminAddMember = () => {
       alert("মেম্বারশিপ তৈরি হয়েছে!");
       navigate('/admin/members');
     } catch (err) {
-      alert(err.code === 'auth/email-already-in-use' ? "এই নম্বর দিয়ে ইতিমধ্যে অ্যাকাউন্ট আছে!" : err.message);
+      alert(err.code === 'auth/email-already-in-use' ? "এই নম্বর দিয়ে ইতিমধ্যে অ্যাকাউন্ট আছে!" : err.message);
     } finally {
       setLoading(false);
     }
@@ -276,7 +280,7 @@ const AdminAddMember = () => {
 
                     <div className="grid grid-cols-2 gap-4 mt-6 bg-[#FBFDFF] p-5 rounded-3xl border border-blue-50">
                       <DetailBox label="পিতার নাম" value={req.fatherName} icon={<Users size={12}/>} />
-                      <DetailBox label="মাসিক লক্ষ্য" value={`৳${req.monthlyTarget}`} icon={<Target size={12} className="text-blue-500"/>} />
+                      <DetailBox label="মাসিক লক্ষ্য" value={`৳${req.monthlyTarget}`} icon={<Target size={10} className="text-blue-500"/>} />
                       <DetailBox label="NID নম্বর" value={req.nid || "N/A"} icon={<CreditCard size={12}/>} />
                       <DetailBox label="রেজিস্ট্রেশন" value={req.regNo || "AUTO"} icon={<Hash size={12}/>} />
                     </div>

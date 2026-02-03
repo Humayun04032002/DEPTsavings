@@ -24,6 +24,13 @@ const AdminApprovals = () => {
     return () => unsubscribe();
   }, []);
 
+  // --- অ্যান্ডরয়েড নোটিফিকেশন ট্রিগার ফাংশন ---
+  const triggerPushNotification = (title, body) => {
+    if (window.Android && window.Android.showNotification) {
+      window.Android.showNotification(title, body);
+    }
+  };
+
   const copyToClipboard = (text, id) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -65,6 +72,9 @@ const AdminApprovals = () => {
         });
       });
 
+      // অ্যান্ডরয়েড পুশ নোটিফিকেশন পাঠানো
+      triggerPushNotification("জমা সফল! ✅", `${memberName}-এর ৳${amount} জমা এপ্রুভ করা হয়েছে।`);
+
       await addDoc(collection(db, "logs"), {
         adminName: userData?.name || "Admin",
         action: "জমা এপ্রুভাল",
@@ -92,6 +102,9 @@ const AdminApprovals = () => {
         rejectedAt: serverTimestamp(),
         rejectReason: reason || "No reason provided"
       });
+
+      // অ্যান্ডরয়েড পুশ নোটিফিকেশন পাঠানো (রিজেক্টের জন্য)
+      triggerPushNotification("আবেদন বাতিল ❌", `${memberName}, আপনার ৳${amount} জমার আবেদনটি বাতিল করা হয়েছে।`);
 
       await addDoc(collection(db, "notifications"), {
         title: "আবেদন বাতিল ❌",

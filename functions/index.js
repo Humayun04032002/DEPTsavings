@@ -1,37 +1,45 @@
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-admin.initializeApp();
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
 
-// ১. এডমিনকে নোটিফিকেশন পাঠানো (ইউজার টাকা জমা দিলে)
-exports.onDepositAdded = functions.firestore
-    .document('deposits/{id}')
-    .onCreate(async (snap) => {
-        const data = snap.data();
-        const payload = {
-            notification: {
-                title: 'নতুন জমার আবেদন! 💰',
-                body: `${data.userName} ৳${data.amount} জমা দিয়েছেন।`,
-            }
-        };
-        // এডমিন টপিকে মেসেজ পাঠানো
-        return admin.messaging().sendToTopic('admin_notifications', payload);
-    });
+// আপনার ডাউনলোড করা JSON ফাইলটির পাথ এখানে দিন
+// ফাইলটি 'functions' ফোল্ডারের ভেতরে রাখা ভালো
+const serviceAccount = require("./somity-management-572db-a326063d8afc.json");
 
-// ২. ইউজারকে নোটিফিকেশন পাঠানো (এডমিন এপ্রুভ করলে)
-exports.onDepositApproved = functions.firestore
-    .document('deposits/{id}')
-    .onUpdate(async (change) => {
-        const after = change.after.data();
-        const before = change.before.data();
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
-        // যদি স্ট্যাটাস pending থেকে approved হয়
-        if (before.status === 'pending' && after.status === 'approved') {
-            const payload = {
-                notification: {
-                    title: 'জমা সফল হয়েছে! ✅',
-                    body: `আপনার ৳${after.amount} জমা এপ্রুভ করা হয়েছে।`,
-                }
-            };
-            return admin.messaging().sendToTopic(`user_${after.userId}`, payload);
+exports.sendPushNotification = functions.firestore
+    .document("notifications/{docId}")
+    .onCreate(async (snap, context) => {
+      const data = snap.data();
+      const userId = data.recipient;
+
+      try {
+        // ইউজারের fcmToken খুঁজে বের করা
+        const userDoc = await admin.firestore().collection("users").doc(userId).get();
+        const fcmToken = userDoc.data()?.fcmToken;
+
+        if (!fcmToken) {
+          console.log("No token found for user:", userId);
+          return null;
         }
+
+        const message = {
+          notification: {
+            title: data.title || "নতুন আপডেট! ✅",
+            body: data.body || "আপনার অ্যাপে একটি নতুন নোটিফিকেশন এসেছে।",
+          },
+          // আপনি চাইলে এখানে অ্যান্ড্রয়েড বা ওয়েবের জন্য আলাদা ডাটা যোগ করতে পারেন
+          token: fcmToken,
+        };
+
+        // নোটিফিকেশন পাঠানো
+        const response = await admin.messaging().send(message);
+        console.log("Successfully sent message:", response);
+        return response;
+      } catch (error) {
+        console.error("Error sending notification:", error);
+        return null;
+      }
     });

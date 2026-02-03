@@ -27,6 +27,13 @@ const AdminNotice = ({ darkMode }) => {
     return () => unsubscribe();
   }, []);
 
+  // --- নোটিফিকেশন ট্রিগার করার লজিক ---
+  const triggerPushNotification = (title, body) => {
+    if (window.Android && window.Android.showNotification) {
+      window.Android.showNotification(title, body);
+    }
+  };
+
   const handlePostNotice = async (e) => {
     e.preventDefault();
     const cleanTitle = title.trim();
@@ -35,6 +42,7 @@ const AdminNotice = ({ darkMode }) => {
 
     setLoading(true);
     try {
+      // ১. ডাটাবেসে নোটিশ সেভ
       await addDoc(collection(db, "notices"), {
         title: cleanTitle,
         message: cleanMessage,
@@ -43,6 +51,7 @@ const AdminNotice = ({ darkMode }) => {
         type: "notice" 
       });
 
+      // ২. অ্যাক্টিভিটি লগ সেভ
       await addDoc(collection(db, "logs"), {
         adminName: userData?.name || "Admin",
         action: "নোটিশ পাবলিশ",
@@ -50,6 +59,9 @@ const AdminNotice = ({ darkMode }) => {
         timestamp: serverTimestamp(),
         type: "info"
       });
+
+      // ৩. অ্যান্ড্রয়েড ফোনে পুশ নোটিফিকেশন পাঠানো
+      triggerPushNotification("নতুন নোটিশ! 📢", cleanTitle);
 
       setTitle('');
       setMessage('');
@@ -72,7 +84,7 @@ const AdminNotice = ({ darkMode }) => {
   return (
     <div className={`min-h-screen transition-all duration-300 ${darkMode ? 'bg-[#0B0F1A] text-white' : 'bg-slate-50 text-slate-900'} pb-12 overflow-x-hidden`}>
       
-      {/* Mobile-Friendly Top Bar */}
+      {/* Top Bar */}
       <div className={`sticky top-0 z-50 px-4 py-4 md:px-8 border-b backdrop-blur-md ${darkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-white/80 border-slate-100'}`}>
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <button 

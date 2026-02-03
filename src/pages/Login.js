@@ -23,6 +23,12 @@ const Login = () => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      // 🟢 অ্যান্ড্রয়েড অ্যাপকে জানানো যে এই ইউজার (সাগর বা রাকিব) লগইন করেছেন
+      // এটি করলে শুধুমাত্র সঠিক ইউজারের ফোনেই নোটিফিকেশন যাবে
+      if (window.Android) {
+        window.Android.setCurrentUser(user.uid);
+      }
+
       const userDoc = await getDoc(doc(db, "users", user.uid));
       
       if (userDoc.exists()) {
@@ -44,7 +50,7 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] p-6 relative overflow-hidden font-sans">
       
-      {/* ১. প্রিমিয়াম ব্যাকগ্রাউন্ড আর্ট ও টেক্সচার */}
+      {/* ১. প্রিমিয়াম ব্যাকগ্রাউন্ড আর্ট ও টেক্সচার */}
       <div className="fixed inset-0 z-0 opacity-[0.04] pointer-events-none" 
            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")` }}>
       </div>
@@ -52,7 +58,7 @@ const Login = () => {
       <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] bg-blue-400/20 z-0"></div>
 
       <div className="max-w-md w-full relative z-10">
-        {/* কলেজ ও ডিপার্টমেন্টের নাম (প্রিমিয়াম হেডার) */}
+        {/* কলেজ ও ডিপার্টমেন্টের নাম (প্রিমিয়াম হেডার) */}
         <div className="text-center mb-10 space-y-2 animate-fadeIn">
           <div className="inline-flex items-center justify-center p-3 bg-white rounded-2xl shadow-xl border border-slate-100 mb-4 text-emerald-600">
             <GraduationCap size={40} />

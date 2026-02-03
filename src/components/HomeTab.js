@@ -16,26 +16,28 @@ const HomeTab = ({ user, darkMode }) => {
   const [deposits, setDeposits] = useState([]);
   const [latestNotice, setLatestNotice] = useState(null);
   
-  // State for admin payment numbers
   const [paySettings, setPaySettings] = useState({ bkash: 'Loading...', nagad: 'Loading...' }); 
   const [hasPaidThisMonth, setHasPaidThisMonth] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState('');
   
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  const currentMonthName = months[new Date().getMonth()];
+  const now = new Date();
+  const currentMonthName = months[now.getMonth()];
+  const currentYear = now.getFullYear();
+  // অ্যাডমিন প্যানেলের সাথে মিল রেখে মাসের ফরম্যাট তৈরি
+  const currentMonthWithYear = `${currentMonthName} ${currentYear}`;
 
   const [payInfo, setPayInfo] = useState({ 
     amount: user?.monthlyTarget || '', 
     method: 'Bkash', 
     trxId: '',
-    forMonth: currentMonthName 
+    forMonth: currentMonthWithYear // ডিফল্ট হিসেবে বছরসহ মাস সেট করা হলো
   });
 
   useEffect(() => {
     if (!auth.currentUser) return;
 
-    // ১. পেমেন্ট নাম্বার ফেচ (Admin settings -> pay_settings document)
     const unsubPaySettings = onSnapshot(doc(db, "settings", "pay_settings"), (d) => {
       if(d.exists()) {
         const data = d.data();
@@ -44,27 +46,24 @@ const HomeTab = ({ user, darkMode }) => {
           nagad: data.nagad || 'Not Set'
         });
       }
-    }, (err) => {
-        console.error("Payment Settings Error:", err);
     });
 
-    // ২. ট্রানজ্যাকশন হিস্টোরি এবং পেমেন্ট স্ট্যাটাস চেক
     const q = query(collection(db, "deposits"), where("userId", "==", auth.currentUser.uid));
     const unsubDeposits = onSnapshot(q, (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const sortedDocs = docs.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
       setDeposits(sortedDocs);
 
-      const now = new Date();
+      // পেমেন্ট স্ট্যাটাস চেক লজিক আপডেট
       const paid = sortedDocs.some(d => {
-        if (!d.timestamp || !d.forMonth) return false;
-        // Check if current month is paid and not rejected
-        return d.forMonth === currentMonthName && (d.status === 'approved' || d.status === 'pending');
+        if (!d.forMonth) return false;
+        // অ্যাডমিন প্যানেল (Feb 2026) এবং ইউজার সাইড (Feb) দুই ফরম্যাটই চেক করবে
+        const isMatch = d.forMonth === currentMonthWithYear || d.forMonth === currentMonthName;
+        return isMatch && (d.status === 'approved' || d.status === 'pending');
       });
       setHasPaidThisMonth(paid);
     });
 
-    // ৩. সর্বশেষ নোটিশ ফেচ
     const noticeQ = query(collection(db, "notices"), orderBy("createdAt", "desc"), limit(1));
     const unsubNotice = onSnapshot(noticeQ, (snap) => {
       if(!snap.empty) setLatestNotice({ id: snap.docs[0].id, ...snap.docs[0].data() });
@@ -75,7 +74,7 @@ const HomeTab = ({ user, darkMode }) => {
       unsubPaySettings(); 
       unsubNotice(); 
     };
-  }, [user, currentMonthName]);
+  }, [user, currentMonthName, currentMonthWithYear]);
 
   const copyToClipboard = (text, type) => {
     if(!text || text.includes('Loading')) return;
@@ -128,10 +127,7 @@ const HomeTab = ({ user, darkMode }) => {
       <div className={`relative p-8 rounded-[3rem] overflow-hidden shadow-2xl transition-all duration-700
         ${hasPaidThisMonth ? 'bg-gradient-to-br from-emerald-500 to-teal-700 shadow-emerald-500/20' : 'bg-gradient-to-br from-slate-800 to-slate-950 shadow-slate-950/40'} text-white`}>
         
-        <button 
-          onClick={() => setShowPayModal(true)} 
-          className="absolute right-0 top-0 p-8 active:scale-90 transition-transform z-30"
-        >
+        <button onClick={() => setShowPayModal(true)} className="absolute right-0 top-0 p-8 active:scale-90 transition-transform z-30">
           <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-md border border-white/30 shadow-lg hover:bg-white/30 transition-all">
             <Plus size={28} strokeWidth={3} />
           </div>
@@ -184,22 +180,24 @@ const HomeTab = ({ user, darkMode }) => {
               </div>
             </div>
           ))}
-          {deposits.length === 0 && <p className="text-center text-xs opacity-40 py-4 font-bold uppercase tracking-widest">No history yet</p>}
         </div>
       </div>
 
-      {/* Payment Modal */}
+      {/* Modern Bottom Sheet Payment Modal */}
       {showPayModal && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className={`w-full max-w-md rounded-[3.5rem] p-8 shadow-2xl max-h-[92vh] overflow-y-auto border border-white/10 animate-in slide-in-from-bottom-20 duration-500 ${darkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm transition-all">
+          {/* Overlay to close */}
+          <div className="absolute inset-0" onClick={() => setShowPayModal(false)}></div>
+          
+          <div className={`relative w-full max-w-md rounded-t-[3.5rem] sm:rounded-[3.5rem] p-8 shadow-2xl max-h-[92vh] overflow-y-auto border-t sm:border border-white/10 animate-in slide-in-from-bottom-full duration-500 ${darkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+            
             <div className="flex justify-between items-center mb-8">
               <h3 className="text-2xl font-black italic tracking-tighter uppercase text-blue-500">Deposit</h3>
               <button onClick={() => setShowPayModal(false)} className="p-3 bg-rose-500/10 rounded-full text-rose-500 active:scale-90"><X size={24}/></button>
             </div>
 
-            {/* Admin Numbers Section */}
+            {/* Admin Numbers */}
             <div className="space-y-4 mb-8">
-              {/* BKASH CARD */}
               <div className={`p-5 rounded-3xl flex items-center justify-between border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-pink-50 border-pink-100'}`}>
                 <div className="flex items-center gap-4">
                    <div className="w-12 h-12 bg-[#e2136e] rounded-2xl flex items-center justify-center text-white font-black text-xs shadow-lg">BK</div>
@@ -208,12 +206,11 @@ const HomeTab = ({ user, darkMode }) => {
                      <p className="text-lg font-black tracking-widest">{paySettings.bkash}</p>
                    </div>
                 </div>
-                <button onClick={() => copyToClipboard(paySettings.bkash, 'bkash')} className={`p-3 rounded-xl transition-all ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-white shadow-sm hover:shadow-md'}`}>
+                <button onClick={() => copyToClipboard(paySettings.bkash, 'bkash')} className={`p-3 rounded-xl ${darkMode ? 'bg-white/10' : 'bg-white shadow-sm'}`}>
                   {copied === 'bkash' ? <CheckCircle2 size={20} className="text-emerald-500"/> : <Copy size={20} className="opacity-40"/>}
                 </button>
               </div>
 
-              {/* NAGAD CARD */}
               <div className={`p-5 rounded-3xl flex items-center justify-between border ${darkMode ? 'bg-white/5 border-white/10' : 'bg-orange-50 border-orange-100'}`}>
                 <div className="flex items-center gap-4">
                    <div className="w-12 h-12 bg-[#f7941d] rounded-2xl flex items-center justify-center text-white font-black text-xs shadow-lg">NG</div>
@@ -222,29 +219,31 @@ const HomeTab = ({ user, darkMode }) => {
                      <p className="text-lg font-black tracking-widest">{paySettings.nagad}</p>
                    </div>
                 </div>
-                <button onClick={() => copyToClipboard(paySettings.nagad, 'nagad')} className={`p-3 rounded-xl transition-all ${darkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-white shadow-sm hover:shadow-md'}`}>
+                <button onClick={() => copyToClipboard(paySettings.nagad, 'nagad')} className={`p-3 rounded-xl ${darkMode ? 'bg-white/10' : 'bg-white shadow-sm'}`}>
                   {copied === 'nagad' ? <CheckCircle2 size={20} className="text-emerald-500"/> : <Copy size={20} className="opacity-40"/>}
                 </button>
               </div>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleDepositSubmit} className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black opacity-40 uppercase tracking-widest ml-2">Month</label>
+                  <label className="text-[10px] font-black opacity-40 uppercase ml-2">Month</label>
                   <select 
-                    className={`w-full p-5 rounded-3xl outline-none font-black text-xs appearance-none border-2 border-transparent focus:border-blue-500/50 ${darkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}
+                    className={`w-full p-5 rounded-3xl font-black text-xs appearance-none border-2 border-transparent focus:border-blue-500/50 ${darkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}
                     value={payInfo.forMonth}
                     onChange={(e) => setPayInfo({...payInfo, forMonth: e.target.value})}
                   >
-                    {months.map(m => <option key={m} value={m} className="text-black">{m}</option>)}
+                    {/* এখানে বছরসহ মাস দেখানো হচ্ছে */}
+                    {months.map(m => (
+                      <option key={m} value={`${m} ${currentYear}`} className="text-black">{m} {currentYear}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black opacity-40 uppercase tracking-widest ml-2">Method</label>
+                  <label className="text-[10px] font-black opacity-40 uppercase ml-2">Method</label>
                   <select 
-                    className={`w-full p-5 rounded-3xl outline-none font-black text-xs appearance-none border-2 border-transparent focus:border-blue-500/50 ${darkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}
+                    className={`w-full p-5 rounded-3xl font-black text-xs appearance-none border-2 border-transparent focus:border-blue-500/50 ${darkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}
                     value={payInfo.method}
                     onChange={(e) => setPayInfo({...payInfo, method: e.target.value})}
                   >
@@ -255,13 +254,13 @@ const HomeTab = ({ user, darkMode }) => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black opacity-40 uppercase tracking-widest ml-2">Amount (৳)</label>
-                <input type="number" className={`w-full p-5 rounded-3xl outline-none font-black text-xl border-2 border-transparent focus:border-blue-500/50 ${darkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`} value={payInfo.amount} onChange={(e) => setPayInfo({...payInfo, amount: e.target.value})} required />
+                <label className="text-[10px] font-black opacity-40 uppercase ml-2">Amount (৳)</label>
+                <input type="number" className={`w-full p-5 rounded-3xl font-black text-xl border-2 border-transparent focus:border-blue-500/50 ${darkMode ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`} value={payInfo.amount} onChange={(e) => setPayInfo({...payInfo, amount: e.target.value})} required />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black opacity-40 uppercase tracking-widest ml-2">TrxID</label>
-                <input type="text" placeholder="EX: 9XN8..." className={`w-full p-5 rounded-3xl outline-none font-black text-lg uppercase border-2 border-transparent focus:border-blue-500/50 ${darkMode ? 'bg-white/5 text-white placeholder:opacity-20' : 'bg-slate-100 text-slate-900'}`} value={payInfo.trxId} onChange={(e) => setPayInfo({...payInfo, trxId: e.target.value})} required />
+                <label className="text-[10px] font-black opacity-40 uppercase ml-2">TrxID</label>
+                <input type="text" placeholder="EX: 9XN8..." className={`w-full p-5 rounded-3xl font-black text-lg uppercase border-2 border-transparent focus:border-blue-500/50 ${darkMode ? 'bg-white/5 text-white placeholder:opacity-20' : 'bg-slate-100 text-slate-900'}`} value={payInfo.trxId} onChange={(e) => setPayInfo({...payInfo, trxId: e.target.value})} required />
               </div>
 
               <button type="submit" disabled={isSubmitting} className="w-full py-6 mt-4 rounded-[2.5rem] bg-blue-600 text-white font-black shadow-xl shadow-blue-500/20 active:scale-95 transition-all uppercase tracking-widest text-xs">

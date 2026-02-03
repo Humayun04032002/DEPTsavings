@@ -12,14 +12,13 @@ const NoticeBoard = () => {
   const [personalNotifs, setPersonalNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-
-  // সরাসরি লোকাল স্টোরেজ থেকে থিম রিড করা
   const [darkMode] = useState(localStorage.getItem('theme') === 'dark');
 
-  // --- অ্যান্ডরয়েড পুশ নোটিফিকেশন লজিক ---
-  const triggerPushNotification = (title, body) => {
+  // --- আপডেট করা অ্যান্ডরয়েড পুশ নোটিফিকেশন লজিক ---
+  const triggerPushNotification = (title, body, targetId) => {
     if (window.Android && window.Android.showNotification) {
-      window.Android.showNotification(title, body);
+      // অ্যান্ড্রয়েড কোডের নতুন লজিক অনুযায়ী ৩টি প্যারামিটার পাঠানো হচ্ছে
+      window.Android.showNotification(title, body, targetId);
     }
   };
 
@@ -27,22 +26,22 @@ const NoticeBoard = () => {
     window.scrollTo(0, 0);
     if (!auth.currentUser) return;
 
-    // ১. জেনারেল নোটিশ লিসেনার
+    // ১. জেনারেল নোটিশ লিসেনার (সবার জন্য)
     const qNotice = query(collection(db, "notices"), orderBy("createdAt", "desc"));
     const unsubNotice = onSnapshot(qNotice, (snap) => {
       const newNotices = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // নতুন নোটিশ আসলে নোটিফিকেশন দেখানো (প্রথমবার লোড বাদে)
       if (!loading && newNotices.length > notices.length) {
         const latest = newNotices[0];
-        triggerPushNotification(latest.title || "নতুন নোটিশ", latest.message);
+        // targetId হিসেবে "all" পাঠানো হচ্ছে
+        triggerPushNotification(latest.title || "নতুন নোটিশ", latest.message, "all");
       }
       
       setNotices(newNotices);
       if(loading) setLoading(false);
     });
 
-    // ২. পার্সোনাল নোটিফিকেশন লিসেনার
+    // ২. পার্সোনাল নোটিফিকেশন লিসেনার (শুধুমাত্র নির্দিষ্ট ইউজারের জন্য)
     const qPersonal = query(
       collection(db, "notifications"),
       where("recipient", "==", auth.currentUser.uid),
@@ -52,17 +51,16 @@ const NoticeBoard = () => {
     const unsubPersonal = onSnapshot(qPersonal, async (snap) => {
       const pNotifs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // নতুন পার্সোনাল নোটিফিকেশন আসলে (যেমন: টাকা এপ্রুভ বা রিজেক্ট)
       const unread = snap.docs.filter(d => !d.data().read);
       if (!loading && unread.length > 0) {
         const latest = unread[0].data();
-        triggerPushNotification(latest.title || "আপডেট", latest.body);
+        // targetId হিসেবে ইউজারের নিজের UID পাঠানো হচ্ছে
+        triggerPushNotification(latest.title || "আপডেট", latest.body, auth.currentUser.uid);
       }
 
       setPersonalNotifs(pNotifs);
       setLoading(false);
 
-      // ব্যাকগ্রাউন্ডে রিড মার্ক করা
       if (unread.length > 0) {
         const batch = writeBatch(db);
         unread.forEach(d => batch.update(doc(db, "notifications", d.id), { read: true }));
@@ -71,14 +69,14 @@ const NoticeBoard = () => {
     });
 
     return () => { unsubNotice(); unsubPersonal(); };
-  }, [loading, notices.length]); // ডিপেন্ডেন্সি যোগ করা হয়েছে নির্ভুল নোটিফিকেশনের জন্য
+  }, [loading, notices.length, auth.currentUser.uid]); 
 
   return (
     <div className={`min-h-screen transition-all duration-700 ${
         darkMode ? 'bg-[#020617] text-white' : 'bg-[#F8FAFC] text-slate-900'
     }`}>
       
-      {/* স্টিকি গ্লসি হেডার */}
+      {/* স্টিকি হেডার */}
       <div className={`sticky top-0 z-50 backdrop-blur-xl border-b transition-all duration-500 ${
         darkMode ? 'bg-[#020617]/80 border-white/10' : 'bg-white/80 border-slate-200/60'
       }`}>
@@ -111,7 +109,7 @@ const NoticeBoard = () => {
           </div>
         ) : (
           <>
-            {/* পার্সোনাল আপডেট সেকশন */}
+            {/* পার্সোনাল আপডেট */}
             {personalNotifs.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 px-2">
@@ -146,7 +144,7 @@ const NoticeBoard = () => {
               </div>
             )}
 
-            {/* জেনারেল নোটিশ সেকশন */}
+            {/* জেনারেল নোটিশ */}
             <div className="space-y-6">
                 <div className="flex items-center gap-3 px-2">
                    <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 flex items-center gap-2">

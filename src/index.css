@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* অতিরিক্ত স্টাইল */
+body {
+  margin: 0;
+  background-color: #f8fafc;
+}

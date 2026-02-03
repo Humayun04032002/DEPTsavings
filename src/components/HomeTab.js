@@ -189,12 +189,13 @@ const HomeTab = ({ user, darkMode }) => {
       {/* Bottom Sheet Modal */}
       {/* Modern Centered Card Payment Modal */}
       {/* Modern Centered Card Payment Modal */}
+      {/* Modern Top-Centered Card Payment Modal */}
       {showPayModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm transition-all p-4">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center bg-black/80 backdrop-blur-sm transition-all p-4 pt-20">
           {/* Overlay to close */}
           <div className="absolute inset-0" onClick={() => setShowPayModal(false)}></div>
           
-          <div className={`relative w-full max-w-[340px] rounded-[2.5rem] p-6 shadow-2xl max-h-[90vh] overflow-y-auto border border-white/10 animate-in zoom-in-95 duration-300 ${darkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
+          <div className={`relative w-full max-w-[340px] rounded-[2.5rem] p-6 shadow-2xl max-h-[85vh] overflow-y-auto border border-white/10 animate-in slide-in-from-top-10 duration-300 ${darkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}>
             
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-black italic tracking-tighter uppercase text-blue-500">Deposit</h3>
@@ -202,7 +203,7 @@ const HomeTab = ({ user, darkMode }) => {
             </div>
 
             {/* Instruction Warning */}
-            <div className="mb-5 bg-orange-500/10 border border-orange-500/20 p-3 rounded-2xl">
+            <div className="mb-4 bg-orange-500/10 border border-orange-500/20 p-3 rounded-2xl">
               <p className="text-[10px] font-black text-orange-500 text-center uppercase tracking-tighter leading-tight">
                 ⚠️ অবশ্যই ক্যাশ আউট চার্জসহ <br/> সেন্ড মানি করুন
               </p>
